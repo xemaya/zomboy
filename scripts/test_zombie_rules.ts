@@ -1,7 +1,7 @@
 // 僵尸互斥 + 感染生成异地化 规则契约测试
 // Run: npx tsx scripts/test_zombie_rules.ts
 import type { State, Piece } from "../src/game/types";
-import { zombieMayOccupy, legalMoves, zombieHasAnyLegalAction, pickInfectionSpawn, runInfection } from "../src/game/rules";
+import { zombieMayOccupy, legalMoves, zombieHasAnyLegalAction, pickInfectionSpawn, runInfection, legalJumps } from "../src/game/rules";
 import { planTurn } from "../src/game/ai";
 
 let failures = 0;
@@ -155,6 +155,56 @@ console.log("runInfection 接入 R2");
   check("R2.3 确定性:多感染同输入同输出",
     newZs.length === newZsB.length &&
     newZs.every((z, i) => z.r === newZsB[i].r && z.c === newZsB[i].c));
+}
+
+console.log("S-3 R1 不阻挡任何合法感染阵型");
+{
+  // 幸存者在 (4,4);6 种"2 僵尸正交夹击"配对,两僵尸均须满足 zombieMayOccupy。
+  const pairs: [[number, number], [number, number]][] = [
+    [[3, 4], [5, 4]], // N+S
+    [[4, 3], [4, 5]], // W+E
+    [[3, 4], [4, 5]], // N+E
+    [[3, 4], [4, 3]], // N+W
+    [[5, 4], [4, 5]], // S+E
+    [[5, 4], [4, 3]], // S+W
+  ];
+  let allOk = true;
+  for (const [[ar, ac], [br, bc]] of pairs) {
+    const st = mkState([S("S1", 4, 4), Z("ZA", ar, ac)]);
+    if (!zombieMayOccupy(st, br, bc)) allOk = false;
+    const st2 = mkState([S("S1", 4, 4), Z("ZB", br, bc)]);
+    if (!zombieMayOccupy(st2, ar, ac)) allOk = false;
+  }
+  check("6 种感染阵型 R1 全不阻挡(G-B 守卫)", allOk);
+}
+
+console.log("S-4 贴边墙不再免疫(G-A 守卫)");
+{
+  // R1 下贴边列只能成棋盘格:Z 在 (0,0)(2,0)(4,0),奇数行空。
+  // 幸存者站墙列空格 (1,0),向南可跳杀 (2,0) 落 (3,0)。
+  const st = mkState([
+    Z("Z1", 0, 0), Z("Z2", 2, 0), Z("Z3", 4, 0),
+    S("S1", 1, 0),
+  ]);
+  const jumps = legalJumps(st, st.pieces.find((p) => p.id === "S1")!);
+  const killsCol0 = jumps.some((j) => j.killC === 0);
+  check("间隔贴边墙可被跳杀", killsCol0);
+}
+
+console.log("zombieHasAnyLegalAction 补充分支(reserve>0 但无合法召唤、僵尸仍可动 → true)");
+{
+  // 全棋盘石头,只留 Z1 与一个相邻空格 B:
+  //  - 所有空格(仅 B)都与 Z1 正交相邻 → 无任何合法召唤点(summon 子句假)
+  //  - 但 Z1 能走到 B(legalMoves 子句真)→ 整体应为 true
+  const st = mkState([Z("Z1", 0, 0)], { reserve: 4 });
+  for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) st.map.terrain[r][c] = "stone";
+  st.map.terrain[0][0] = "empty"; // Z1 本格
+  st.map.terrain[0][1] = "empty"; // 唯一空格 B,正交相邻 Z1
+  // 自检:无合法召唤点(B 与 Z1 正交相邻 → zombieMayOccupy 假)
+  check("构造:无任何合法召唤点", zombieMayOccupy(st, 0, 1) === false);
+  // Z1 仍可走到 B
+  check("构造:Z1 可移动到 B", legalMoves(st, st.pieces[0]).some((m) => m.r === 0 && m.c === 1));
+  check("reserve>0 无召唤但能动 → true", zombieHasAnyLegalAction(st) === true);
 }
 
 console.log(failures === 0 ? "\nALL PASS" : `\n${failures} FAILED`);
