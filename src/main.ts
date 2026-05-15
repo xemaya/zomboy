@@ -2,6 +2,7 @@ import { generateMap } from "./game/mapgen";
 import { clickCell, newState } from "./game/state";
 import { planTurn, planCardResolution, type Level } from "./game/ai";
 import { aiCardDecision } from "./game/aiCardFlow";
+import { segCurrent, groupNeedsExtraRebuild } from "./ui/startMenu";
 import { emptyCells, legalMoves } from "./game/rules";
 import type { Side, State } from "./game/types";
 import { renderBoard } from "./ui/board";
@@ -50,16 +51,16 @@ function shell() {
         <div class="title-logo"><div class="title-main">ZOM·BOY<span class="plus">+</span></div></div>
         <div class="top-actions">
           <button class="topbtn" id="btn-menu" title="回主菜单，换边 / 换模式">
-            <span class="tb-ico">🏠</span><span class="tb-txt">主菜单</span>
+            <span class="tb-txt">主菜单</span>
           </button>
           <button class="topbtn" id="btn-rules" title="查看完整规则与玩法">
-            <span class="tb-ico">📖</span><span class="tb-txt">怎么玩</span>
+            <span class="tb-txt">怎么玩</span>
           </button>
           <button class="topbtn" id="btn-regen" title="换一张障碍布局，并重新开局">
-            <span class="tb-ico">🗺️</span><span class="tb-txt">换地图</span>
+            <span class="tb-txt">换地图</span>
           </button>
           <button class="topbtn" id="btn-reset" title="保持当前地图，重新开始这一局">
-            <span class="tb-ico">↻</span><span class="tb-txt">重来</span>
+            <span class="tb-txt">重来</span>
           </button>
         </div>
       </div>
@@ -236,55 +237,106 @@ function render() {
   if (started) maybeRunAI();
 }
 
-function renderStart(el: HTMLElement) {
-  el.innerHTML = "";
-  if (started) return;
+const segHtml = (
+  group: string,
+  opts: Array<{ v: string; label: string }>,
+  cur: string,
+) =>
+  `<div class="seg" data-group="${group}">` +
+  opts
+    .map(
+      (o) =>
+        `<button class="seg-btn ${o.v === cur ? "on" : ""}" data-group="${group}" data-val="${o.v}">${o.label}</button>`,
+    )
+    .join("") +
+  `</div>`;
 
-  const seg = (
-    group: string,
-    opts: Array<{ v: string; label: string }>,
-    cur: string,
-  ) =>
-    `<div class="seg" data-group="${group}">` +
-    opts
-      .map(
-        (o) =>
-          `<button class="seg-btn ${o.v === cur ? "on" : ""}" data-group="${group}" data-val="${o.v}">${o.label}</button>`,
-      )
-      .join("") +
-    `</div>`;
+const LVLS = [
+  { v: "easy", label: "简单" },
+  { v: "hard", label: "困难" },
+];
 
-  const LVLS = [
-    { v: "easy", label: "简单" },
-    { v: "hard", label: "困难" },
-  ];
-
-  let extra = "";
+// The mode-dependent rows. Lives in an animation-free #start-extra block so it
+// can be rebuilt on mode/side change without touching .start-overlay.
+function extraRowsHtml(): string {
   if (cfg.mode === "pve") {
-    const aiSide: Side = cfg.humanSide === "survivor" ? "zombie" : "survivor";
-    const aiLvl = aiSide === "zombie" ? cfg.zLevel : cfg.sLevel;
-    extra = `
+    return `
       <div class="start-row"><span class="start-lbl">你扮演</span>
-        ${seg("humanSide", [{ v: "survivor", label: "幸存者" }, { v: "zombie", label: "僵尸" }], cfg.humanSide)}
+        ${segHtml("humanSide", [{ v: "survivor", label: "幸存者" }, { v: "zombie", label: "僵尸" }], cfg.humanSide)}
       </div>
-      <div class="start-row"><span class="start-lbl">AI（${aiSide === "zombie" ? "僵尸" : "幸存者"}）难度</span>
-        ${seg("aiLevel", LVLS, aiLvl)}
+      <div class="start-row"><span class="start-lbl">AI 难度</span>
+        ${segHtml("aiLevel", LVLS, segCurrent("aiLevel", cfg))}
       </div>`;
-  } else if (cfg.mode === "aiai") {
-    extra = `
+  }
+  if (cfg.mode === "aiai") {
+    return `
       <div class="start-row"><span class="start-lbl">僵尸 AI</span>
-        ${seg("zLevel", LVLS, cfg.zLevel)}
+        ${segHtml("zLevel", LVLS, cfg.zLevel)}
       </div>
       <div class="start-row"><span class="start-lbl">幸存者 AI</span>
-        ${seg("sLevel", LVLS, cfg.sLevel)}
+        ${segHtml("sLevel", LVLS, cfg.sLevel)}
       </div>`;
+  }
+  return "";
+}
+
+function applySegChange(g: string, v: string) {
+  if (g === "mode") cfg.mode = v as Mode;
+  else if (g === "humanSide") cfg.humanSide = v as Side;
+  else if (g === "aiLevel") {
+    const aiSide: Side = cfg.humanSide === "survivor" ? "zombie" : "survivor";
+    if (aiSide === "zombie") cfg.zLevel = v as Level;
+    else cfg.sLevel = v as Level;
+  } else if (g === "zLevel") cfg.zLevel = v as Level;
+  else if (g === "sLevel") cfg.sLevel = v as Level;
+}
+
+// Re-highlight every seg button from cfg WITHOUT rebuilding the overlay (so the
+// fade-in entrance never replays → no flicker).
+function syncSegOn(overlay: HTMLElement) {
+  overlay.querySelectorAll<HTMLButtonElement>(".seg-btn").forEach((b) => {
+    b.classList.toggle("on", b.dataset.val === segCurrent(b.dataset.group!, cfg));
+  });
+}
+
+function bindSegs(scope: HTMLElement, overlay: HTMLElement) {
+  scope.querySelectorAll<HTMLButtonElement>(".seg-btn").forEach((b) => {
+    if ((b as HTMLButtonElement & { _bound?: boolean })._bound) return;
+    (b as HTMLButtonElement & { _bound?: boolean })._bound = true;
+    b.addEventListener("click", () => {
+      const g = b.dataset.group!;
+      applySegChange(g, b.dataset.val!);
+      // Only mode/side change which rows exist → rebuild just that block.
+      if (groupNeedsExtraRebuild(g)) {
+        const ex = overlay.querySelector<HTMLElement>("#start-extra");
+        if (ex) {
+          ex.innerHTML = extraRowsHtml();
+          bindSegs(ex, overlay);
+        }
+      }
+      syncSegOn(overlay);
+    });
+  });
+}
+
+function renderStart(el: HTMLElement) {
+  if (started) {
+    el.innerHTML = "";
+    return;
+  }
+  // Already mounted → just refresh highlight. Never tear the overlay down:
+  // recreating it replays the fade-in entrance (the 选项闪烁 bug).
+  const mounted = el.querySelector<HTMLElement>(".start-overlay");
+  if (mounted) {
+    syncSegOn(mounted);
+    return;
   }
 
   const modeOpts = [
-    { v: "pvp", label: "👥 人 vs 人" },
-    { v: "pve", label: "🤖 人 vs AI" },
+    { v: "pvp", label: "人 vs 人" },
+    { v: "pve", label: "人 vs AI" },
   ];
-  if (DEV_AIAI) modeOpts.push({ v: "aiai", label: "⚔️ AI 对战" });
+  if (DEV_AIAI) modeOpts.push({ v: "aiai", label: "AI 对战" });
 
   const ov = document.createElement("div");
   ov.className = "start-overlay";
@@ -292,28 +344,13 @@ function renderStart(el: HTMLElement) {
     <div class="start-card">
       <div class="start-title">ZOM·BOY<span class="plus">+</span></div>
       <div class="start-sub">选择对战模式</div>
-      <div class="start-row">${seg("mode", modeOpts, cfg.mode)}</div>
-      ${extra}
+      <div class="start-row">${segHtml("mode", modeOpts, cfg.mode)}</div>
+      <div id="start-extra">${extraRowsHtml()}</div>
       <button class="start-go" id="start-go">▶ 开 始</button>
     </div>
   `;
   el.appendChild(ov);
-
-  ov.querySelectorAll<HTMLButtonElement>(".seg-btn").forEach((b) => {
-    b.addEventListener("click", () => {
-      const g = b.dataset.group!;
-      const v = b.dataset.val!;
-      if (g === "mode") cfg.mode = v as Mode;
-      else if (g === "humanSide") cfg.humanSide = v as Side;
-      else if (g === "aiLevel") {
-        const aiSide: Side = cfg.humanSide === "survivor" ? "zombie" : "survivor";
-        if (aiSide === "zombie") cfg.zLevel = v as Level;
-        else cfg.sLevel = v as Level;
-      } else if (g === "zLevel") cfg.zLevel = v as Level;
-      else if (g === "sLevel") cfg.sLevel = v as Level;
-      render(); // re-render start card to reflect selection / conditional rows
-    });
-  });
+  bindSegs(ov, ov);
   ov.querySelector<HTMLButtonElement>("#start-go")?.addEventListener("click", startGame);
 }
 

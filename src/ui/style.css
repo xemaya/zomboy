@@ -109,7 +109,6 @@ html, body {
   transition: transform 80ms, box-shadow 80ms, background 80ms;
   white-space: nowrap;
 }
-.topbtn .tb-ico { font-size: clamp(13px, 3.6vw, 18px); line-height: 1; }
 .topbtn .tb-txt { letter-spacing: 0.5px; }
 .topbtn:hover { background: var(--accent-yellow); }
 .topbtn:active { transform: translate(3px,3px); box-shadow: 0 0 0 var(--accent-pink); }
@@ -759,7 +758,9 @@ html, body {
 .start-lbl {
   font-size: 13px;
   color: rgba(246, 241, 224, 0.75);
-  min-width: 84px;
+  flex: 0 0 84px;
+  width: 84px;
+  white-space: nowrap;
   text-align: left;
   letter-spacing: 1px;
 }
@@ -850,7 +851,6 @@ html, body {
     gap: 3px;
     font-size: 12px;
   }
-  .topbtn .tb-ico { font-size: 13px; }
   .topbtn .tb-txt { letter-spacing: 0; }
   .hud-scores { gap: 8px; }
   .score-card { padding: 7px 10px; gap: 10px; }
