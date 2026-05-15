@@ -85,14 +85,17 @@ console.log("召唤接入 R1 (AI enumerate)");
   const st = mkState([Z("Z1", 0, 0), S("S1", 0, 2)], { reserve: 3 });
   st.turnSide = "zombie";
   let ok = true;
-  for (let i = 0; i < 30; i++) {
+  let sawSummon = false;
+  for (let i = 0; i < 60; i++) {
     const clicks = planTurn(st, "zombie", "easy");
     if (clicks.length === 1) {
+      sawSummon = true;
       const { r, c } = clicks[0]; // 单点 = 召唤
       if (!zombieMayOccupy(st, r, c)) ok = false;
     }
   }
   check("AI 召唤落点恒满足 R1", ok);
+  check("60 轮内至少触发一次召唤(覆盖性,非空测)", sawSummon);
 }
 
 console.log(failures === 0 ? "\nALL PASS" : `\n${failures} FAILED`);

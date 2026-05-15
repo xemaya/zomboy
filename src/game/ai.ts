@@ -267,16 +267,20 @@ function toClicks(s: State, a: AnyAction): Array<{ r: number; c: number }> {
 export function planTurn(state: State, side: Side, level: Level): Array<{ r: number; c: number }> {
   const cands = enumerate(state, side);
   if (cands.length === 0) {
-    // safety fallback (zombie only realistically)
-    const e = emptyCells(state);
-    if (side === "zombie" && state.zombieReserve > 0 && e.length) return [{ r: e[0].r, c: e[0].c }];
+    // safety fallback (zombie only realistically). Summon fallbacks must still
+    // respect R1 (no zombie ortho-adjacent to another zombie); the move
+    // fallback already does (legalMoves is R1-aware).
+    const placeable = emptyCells(state).filter((c) => zombieMayOccupy(state, c.r, c.c));
+    if (side === "zombie" && state.zombieReserve > 0 && placeable.length)
+      return [{ r: placeable[0].r, c: placeable[0].c }];
     if (side === "zombie") {
       for (const z of zombies(state)) {
         const m = legalMoves(state, z);
         if (m.length >= 1)
           return [{ r: z.r, c: z.c }, { r: m[0].r, c: m[0].c }, { r: (m[1] ?? m[0]).r, c: (m[1] ?? m[0]).c }];
       }
-      if (e.length) return [{ r: e[0].r, c: e[0].c }];
+      if (state.zombieReserve > 0 && placeable.length)
+        return [{ r: placeable[0].r, c: placeable[0].c }];
     }
     return [];
   }
