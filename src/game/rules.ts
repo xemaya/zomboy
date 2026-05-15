@@ -36,6 +36,8 @@ export function legalMoves(state: State, piece: Piece): Array<{ r: number; c: nu
     if (!inBounds(nr, nc)) continue;
     if (state.map.terrain[nr][nc] === "stone") continue;
     if (pieceAt(state, nr, nc)) continue;
+    // R1: zombies cannot end orthogonally adjacent to another zombie.
+    if (piece.side === "zombie" && !zombieMayOccupy(state, nr, nc, piece.id)) continue;
     out.push({ r: nr, c: nc });
   }
   return out;

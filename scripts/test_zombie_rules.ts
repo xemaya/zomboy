@@ -1,7 +1,7 @@
 // 僵尸互斥 + 感染生成异地化 规则契约测试
 // Run: npx tsx scripts/test_zombie_rules.ts
 import type { State, Piece } from "../src/game/types";
-import { zombieMayOccupy } from "../src/game/rules";
+import { zombieMayOccupy, legalMoves } from "../src/game/rules";
 
 let failures = 0;
 function check(name: string, cond: boolean) {
@@ -44,6 +44,20 @@ console.log("zombieMayOccupy (S-1)");
   check("被其他棋子占用 → 禁", zombieMayOccupy(mkState([S("S1", 3, 3)]), 3, 3) === false);
   check("与幸存者正交相邻不影响", zombieMayOccupy(mkState([S("S1", 4, 4)]), 4, 5) === true);
   check("ignoreId=自身时其本格视为可占(无冲突的 no-op 目标)", zombieMayOccupy(mkState([Z("Z1", 4, 4)]), 4, 4, "Z1") === true);
+}
+
+console.log("legalMoves 僵尸接入 R1");
+{
+  // Z1(4,4) 想动;Z2(4,6) 在场。Z1 不能走到 (4,5)(与 Z2 正交相邻),
+  // 但可以走到 (3,4)/(5,4)/(4,3)。
+  const st = mkState([Z("Z1", 4, 4), Z("Z2", 4, 6)]);
+  const mv = legalMoves(st, st.pieces[0]).map((m) => `${m.r},${m.c}`);
+  check("僵尸不可走到与另一僵尸正交相邻格", !mv.includes("4,5"));
+  check("僵尸仍可走到不相邻的合法格", mv.includes("3,4") && mv.includes("4,3"));
+  // 幸存者不受 R1 约束
+  const st2 = mkState([S("S1", 4, 4), Z("Z1", 4, 6)]);
+  const sm = legalMoves(st2, st2.pieces[0]).map((m) => `${m.r},${m.c}`);
+  check("幸存者不受 R1 约束(可走到僵尸旁)", sm.includes("4,5"));
 }
 
 console.log(failures === 0 ? "\nALL PASS" : `\n${failures} FAILED`);
