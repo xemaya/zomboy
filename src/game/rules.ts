@@ -1,0 +1,132 @@
+import { BOARD, WIN_KILLS, Piece, Side, State } from "./types";
+
+export function pieceAt(state: State, r: number, c: number): Piece | null {
+  for (const p of state.pieces) if (p.r === r && p.c === c) return p;
+  return null;
+}
+
+function inBounds(r: number, c: number) {
+  return r >= 0 && r < BOARD && c >= 0 && c < BOARD;
+}
+
+export const ORTHO: Array<[number, number]> = [
+  [-1, 0],
+  [1, 0],
+  [0, -1],
+  [0, 1],
+];
+
+const DIAG: Array<[number, number]> = [
+  [-1, -1],
+  [-1, 1],
+  [1, -1],
+  [1, 1],
+];
+
+export const EIGHT: Array<[number, number]> = [...ORTHO, ...DIAG];
+
+// Legal one-step move cells. Zombies move orthogonally only;
+// survivors move in all 8 directions.
+export function legalMoves(state: State, piece: Piece): Array<{ r: number; c: number }> {
+  const dirs = piece.side === "zombie" ? ORTHO : EIGHT;
+  const out: Array<{ r: number; c: number }> = [];
+  for (const [dr, dc] of dirs) {
+    const nr = piece.r + dr;
+    const nc = piece.c + dc;
+    if (!inBounds(nr, nc)) continue;
+    if (state.map.terrain[nr][nc] === "stone") continue;
+    if (pieceAt(state, nr, nc)) continue;
+    out.push({ r: nr, c: nc });
+  }
+  return out;
+}
+
+// Survivor-only: jump over an adjacent zombie to the cell beyond (any of 8
+// directions). Returns array of { dest, killR, killC }.
+export interface JumpMove {
+  destR: number;
+  destC: number;
+  killR: number;
+  killC: number;
+}
+
+export function legalJumps(state: State, piece: Piece): JumpMove[] {
+  if (piece.side !== "survivor") return [];
+  const out: JumpMove[] = [];
+  for (const [dr, dc] of EIGHT) {
+    const midR = piece.r + dr;
+    const midC = piece.c + dc;
+    const dstR = piece.r + 2 * dr;
+    const dstC = piece.c + 2 * dc;
+    if (!inBounds(dstR, dstC)) continue;
+    if (state.map.terrain[dstR][dstC] === "stone") continue;
+    if (pieceAt(state, dstR, dstC)) continue;
+    const mid = pieceAt(state, midR, midC);
+    if (!mid || mid.side !== "zombie") continue;
+    out.push({ destR: dstR, destC: dstC, killR: midR, killC: midC });
+  }
+  return out;
+}
+
+// Cells with no piece and not stone — used for "summon zombie" and "ghost dice".
+export function emptyCells(state: State): Array<{ r: number; c: number }> {
+  const out: Array<{ r: number; c: number }> = [];
+  for (let r = 0; r < BOARD; r++) {
+    for (let c = 0; c < BOARD; c++) {
+      if (state.map.terrain[r][c] === "stone") continue;
+      if (pieceAt(state, r, c)) continue;
+      out.push({ r, c });
+    }
+  }
+  return out;
+}
+
+// End-of-turn infection scan. Any survivor with >=2 orthogonal zombie neighbors
+// is infected: removed, zombie kill count goes up. If reserve > 0, a new zombie
+// spawns in the vacated cell. Returns log messages.
+export function runInfection(state: State): string[] {
+  const log: string[] = [];
+  const infected: Piece[] = [];
+  for (const p of state.pieces) {
+    if (p.side !== "survivor") continue;
+    let z = 0;
+    for (const [dr, dc] of ORTHO) {
+      const n = pieceAt(state, p.r + dr, p.c + dc);
+      if (n && n.side === "zombie") z++;
+    }
+    if (z >= 2) infected.push(p);
+  }
+  for (const p of infected) {
+    state.pieces = state.pieces.filter((x) => x !== p);
+    state.zombieKills += 1;
+    log.push(`${p.id} 在 (${p.r},${p.c}) 被感染！(zombie +1 = ${state.zombieKills})`);
+    if (state.zombieReserve > 0) {
+      state.zombieReserve -= 1;
+      const newId = nextZombieId(state);
+      state.pieces.push({ id: newId, side: "zombie", r: p.r, c: p.c });
+      log.push(`新僵尸 ${newId} 在原地生成（库存剩 ${state.zombieReserve}）`);
+    }
+  }
+  return log;
+}
+
+export function nextZombieId(state: State): string {
+  let n = 1;
+  while (state.pieces.some((p) => p.id === `Z${n}`)) n++;
+  return `Z${n}`;
+}
+
+export function checkWinner(state: State): "survivor" | "zombie" | null {
+  // Canonical rule: first side to collect WIN_KILLS of opponent's pieces wins.
+  if (state.survivorKills >= WIN_KILLS) return "survivor";
+  if (state.zombieKills >= WIN_KILLS) return "zombie";
+  return null;
+}
+
+export function pieceById(state: State, id: string): Piece | null {
+  return state.pieces.find((p) => p.id === id) ?? null;
+}
+
+export function otherSide(s: Side): Side {
+  return s === "survivor" ? "zombie" : "survivor";
+}
