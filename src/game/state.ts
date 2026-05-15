@@ -17,6 +17,7 @@ import {
   pieceAt,
   pieceById,
   runInfection,
+  zombieMayOccupy,
 } from "./rules";
 
 // ===== Fun flavor lines, keyed by event type =====
@@ -295,6 +296,7 @@ function handleZombieClick(state: State, r: number, c: number) {
   // Summon a new zombie (only while reserve remains). When reserve is empty
   // the only legal action is moving — clicking empty does nothing.
   if (state.zombieReserve > 0) {
+    if (!zombieMayOccupy(state, r, c)) return; // R1: 不可贴另一僵尸召唤
     const id = nextZombieId(state);
     state.pieces.push({ id, side: "zombie", r, c });
     state.zombieReserve -= 1;

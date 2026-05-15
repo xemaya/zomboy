@@ -14,6 +14,7 @@ import {
   pieceById,
   runInfection,
   ORTHO,
+  zombieMayOccupy,
 } from "./rules";
 import type { Side, State } from "./types";
 
@@ -152,8 +153,9 @@ function enumerateZombie(s: State): ZAction[] {
   // Summon candidates only while reserve remains; reserve-empty turns are
   // move-only (no teleport).
   if (s.zombieReserve > 0) {
-    for (const e of empties) if (near(e.r, e.c, 4)) out.push({ kind: "summon", r: e.r, c: e.c });
-    if (out.length === 0) for (const e of empties) out.push({ kind: "summon", r: e.r, c: e.c });
+    const placeable = empties.filter((e) => zombieMayOccupy(s, e.r, e.c));
+    for (const e of placeable) if (near(e.r, e.c, 4)) out.push({ kind: "summon", r: e.r, c: e.c });
+    if (out.length === 0) for (const e of placeable) out.push({ kind: "summon", r: e.r, c: e.c });
   }
 
   const zsorted = zombies(s)

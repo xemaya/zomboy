@@ -2,6 +2,7 @@
 // Run: npx tsx scripts/test_zombie_rules.ts
 import type { State, Piece } from "../src/game/types";
 import { zombieMayOccupy, legalMoves, zombieHasAnyLegalAction } from "../src/game/rules";
+import { planTurn } from "../src/game/ai";
 
 let failures = 0;
 function check(name: string, cond: boolean) {
@@ -76,6 +77,22 @@ console.log("zombieHasAnyLegalAction (R1.4 兜底)");
     stones: [[0, 1], [1, 0]],
   });
   check("无库存且无路可走 → false", zombieHasAnyLegalAction(boxed) === false);
+}
+
+console.log("召唤接入 R1 (AI enumerate)");
+{
+  // 仅 1 个空策略点会与现有僵尸正交相邻;AI 召唤不应选它。
+  const st = mkState([Z("Z1", 0, 0), S("S1", 0, 2)], { reserve: 3 });
+  st.turnSide = "zombie";
+  let ok = true;
+  for (let i = 0; i < 30; i++) {
+    const clicks = planTurn(st, "zombie", "easy");
+    if (clicks.length === 1) {
+      const { r, c } = clicks[0]; // 单点 = 召唤
+      if (!zombieMayOccupy(st, r, c)) ok = false;
+    }
+  }
+  check("AI 召唤落点恒满足 R1", ok);
 }
 
 console.log(failures === 0 ? "\nALL PASS" : `\n${failures} FAILED`);
