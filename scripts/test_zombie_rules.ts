@@ -3,6 +3,7 @@
 import type { State, Piece } from "../src/game/types";
 import { zombieMayOccupy, legalMoves, zombieHasAnyLegalAction, pickInfectionSpawn, runInfection, legalJumps } from "../src/game/rules";
 import { planTurn } from "../src/game/ai";
+import { zombieOffense } from "../src/game/ai";
 
 let failures = 0;
 function check(name: string, cond: boolean) {
@@ -213,6 +214,13 @@ console.log("zombieHasAnyLegalAction 补充分支(reserve>0 但无合法召唤�
   // Z1 仍可走到 B
   check("构造:Z1 可移动到 B", legalMoves(st, st.pieces[0]).some((m) => m.r === 0 && m.c === 1));
   check("reserve>0 无召唤但能动 → true", zombieHasAnyLegalAction(st) === true);
+}
+
+console.log("zombieOffense(进攻偏置,单调性)");
+{
+  const far = mkState([S("S1", 4, 4), Z("Z1", 0, 0)]);
+  const adj = mkState([S("S1", 4, 4), Z("Z1", 3, 4)]); // 正交贴住
+  check("贴住比远离进攻分高", zombieOffense(adj) > zombieOffense(far));
 }
 
 console.log(failures === 0 ? "\nALL PASS" : `\n${failures} FAILED`);

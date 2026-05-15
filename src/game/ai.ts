@@ -83,7 +83,16 @@ function zombieScore(s: State): number {
     const z = pieceAt(s, j.killR, j.killC);
     if (z && z.side === "zombie") killable.add(z.id);
   }
-  v += -killable.size * 160;
+  let usefulKillable = 0;
+  for (const sv of ss) {
+    for (const [dr, dc] of ORTHO) {
+      const p = pieceAt(s, sv.r + dr, sv.c + dc);
+      if (p && p.side === "zombie" && killable.has(p.id)) usefulKillable++;
+    }
+  }
+  // a killable zombie that is itself pincering a survivor is a fair trade
+  // (lose 1 to set up an infection); only "useless" exposure stays harsh.
+  v += -(killable.size - usefulKillable) * 160 - usefulKillable * 60;
   v += zs.length * 5 + s.zombieReserve * 3;
   return v;
 }
@@ -228,6 +237,34 @@ function survivorOffense(s: State): number {
   return b;
 }
 
+// Zombie aggression bias — mirror of survivorOffense. Applied AFTER the hard
+// worst-case so the zombie commits to pincers / suffocation instead of hovering
+// at distance 2. Starting weights; tuned to the harness gates in the next task.
+export function zombieOffense(s: State): number {
+  let b = 0;
+  const zs = zombies(s);
+  for (const sv of survivors(s)) {
+    let ortho = 0;
+    for (const [dr, dc] of ORTHO) {
+      const p = pieceAt(s, sv.r + dr, sv.c + dc);
+      if (p && p.side === "zombie") ortho++;
+    }
+    if (ortho === 1) b += 80;   // one ortho zombie = one step from infection
+    if (ortho >= 2) b += 140;   // about to infect
+    // suffocation: fewer escape squares for the survivor is good
+    b += (8 - legalMoves(s, sv).length) * 6;
+    // commit: zombies near the survivor (engage, don't hover)
+    let near = 0;
+    for (const z of zs) if (manhattan(z, sv) <= 2) near++;
+    b += near * 14;
+    // herd to wall/corner
+    const edge = sv.r === 0 || sv.r === 7 || sv.c === 0 || sv.c === 7;
+    const corner = (sv.r === 0 || sv.r === 7) && (sv.c === 0 || sv.c === 7);
+    b += corner ? 36 : edge ? 16 : 0;
+  }
+  return b;
+}
+
 function scoreAction(state: State, a: AnyAction, side: Side, level: Level): number {
   const after = simulate(state, a);
   let sc = evaluate(after, side);
@@ -245,6 +282,7 @@ function scoreAction(state: State, a: AnyAction, side: Side, level: Level): numb
     }
     // aggression bias is a property of OUR move, applied after the worst-case
     if (side === "survivor") sc += survivorOffense(after);
+    else sc += zombieOffense(after);
   }
   return sc;
 }
