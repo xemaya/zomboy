@@ -56,7 +56,7 @@ const manhattan = (a: { r: number; c: number }, b: { r: number; c: number }) =>
 
 // ---------- evaluation (zombie-positive zero-sum) ----------
 
-function zombieScore(s: State): number {
+export function zombieScore(s: State): number {
   let v = s.zombieKills * 100000;
   const zs = zombies(s);
   const ss = survivors(s);
@@ -83,15 +83,18 @@ function zombieScore(s: State): number {
     const z = pieceAt(s, j.killR, j.killC);
     if (z && z.side === "zombie") killable.add(z.id);
   }
-  let usefulKillable = 0;
+  // a killable zombie that is itself pincering a survivor is a fair trade
+  // (lose 1 to set up an infection); only "useless" exposure stays harsh.
+  // Count DISTINCT killable zombies adjacent to any survivor (a zombie next to
+  // two survivors must not be double-counted, else the penalty flips positive).
+  const usefulKillableIds = new Set<string>();
   for (const sv of ss) {
     for (const [dr, dc] of ORTHO) {
       const p = pieceAt(s, sv.r + dr, sv.c + dc);
-      if (p && p.side === "zombie" && killable.has(p.id)) usefulKillable++;
+      if (p && p.side === "zombie" && killable.has(p.id)) usefulKillableIds.add(p.id);
     }
   }
-  // a killable zombie that is itself pincering a survivor is a fair trade
-  // (lose 1 to set up an infection); only "useless" exposure stays harsh.
+  const usefulKillable = usefulKillableIds.size;
   v += -(killable.size - usefulKillable) * 160 - usefulKillable * 60;
   v += zs.length * 5 + s.zombieReserve * 3;
   return v;

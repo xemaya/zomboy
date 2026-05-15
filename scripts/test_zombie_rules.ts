@@ -4,6 +4,7 @@ import type { State, Piece } from "../src/game/types";
 import { zombieMayOccupy, legalMoves, zombieHasAnyLegalAction, pickInfectionSpawn, runInfection, legalJumps } from "../src/game/rules";
 import { planTurn } from "../src/game/ai";
 import { zombieOffense } from "../src/game/ai";
+import { zombieScore } from "../src/game/ai";
 
 let failures = 0;
 function check(name: string, cond: boolean) {
@@ -221,6 +222,16 @@ console.log("zombieOffense(进攻偏置,单调性)");
   const far = mkState([S("S1", 4, 4), Z("Z1", 0, 0)]);
   const adj = mkState([S("S1", 4, 4), Z("Z1", 3, 4)]); // 正交贴住
   check("贴住比远离进攻分高", zombieOffense(adj) > zombieOffense(far));
+}
+
+console.log("zombieScore: 单一可跳杀僵尸夹在两幸存者间,惩罚不得翻正(回归)");
+{
+  // Z1(4,5) 可被 S1(4,4) 或 S2(4,6) 跳杀;它正交贴两个幸存者。
+  // 旧 bug: usefulKillable 双计 → 惩罚项变正(奖励暴露)。修复后应仍为净惩罚。
+  const exposed = mkState([S("S1", 4, 4), S("S2", 4, 6), Z("Z1", 4, 5)]);
+  const safe = mkState([S("S1", 4, 4), S("S2", 4, 6)]); // 同局面但无暴露僵尸
+  check("暴露可跳杀僵尸的局面 zombieScore 不高于无暴露(惩罚未翻正)",
+    zombieScore(exposed) <= zombieScore(safe));
 }
 
 console.log(failures === 0 ? "\nALL PASS" : `\n${failures} FAILED`);
