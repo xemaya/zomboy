@@ -129,6 +129,17 @@ console.log("runInfection 接入 R2");
   const before = st2.zombieReserve;
   runInfection(st2);
   check("无可用点 → 跳过生成、库存不减", st2.zombieReserve === before && st2.zombieKills === 1);
+  // R2.3 多感染:同回合两个幸存者被夹击,两次 pickInfectionSpawn 落点必须不同
+  const st3 = mkState([
+    S("S1", 0, 1), S("S2", 7, 6),
+    Z("Z1", 0, 0), Z("Z2", 0, 2),   // 夹 S1
+    Z("Z3", 7, 5), Z("Z4", 7, 7),   // 夹 S2
+  ], { reserve: 9 });
+  runInfection(st3);
+  const newZombies = st3.pieces.filter(
+    (p) => p.side === "zombie" && !["Z1", "Z2", "Z3", "Z4"].includes(p.id));
+  check("双感染生成两只新僵尸", newZombies.length === 2);
+  check("两只新僵尸落点不同", !(newZombies[0].r === newZombies[1].r && newZombies[0].c === newZombies[1].c));
 }
 
 console.log(failures === 0 ? "\nALL PASS" : `\n${failures} FAILED`);
