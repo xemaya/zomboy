@@ -81,6 +81,28 @@ export function emptyCells(state: State): Array<{ r: number; c: number }> {
   return out;
 }
 
+// R1: a zombie may only come to occupy a cell that is in-bounds, not stone,
+// not occupied by another piece, and NOT orthogonally adjacent to another
+// zombie. `ignoreId` excludes the moving zombie itself (its old cell is one
+// ortho step from its destination, so without this every move is illegal).
+// Single source of truth for move / summon / infection-spawn (R1).
+export function zombieMayOccupy(
+  state: State,
+  r: number,
+  c: number,
+  ignoreId?: string,
+): boolean {
+  if (!inBounds(r, c)) return false;
+  if (state.map.terrain[r][c] === "stone") return false;
+  const occ = pieceAt(state, r, c);
+  if (occ && occ.id !== ignoreId) return false;
+  for (const [dr, dc] of ORTHO) {
+    const n = pieceAt(state, r + dr, c + dc);
+    if (n && n.side === "zombie" && n.id !== ignoreId) return false;
+  }
+  return true;
+}
+
 // End-of-turn infection scan. Any survivor with >=2 orthogonal zombie neighbors
 // is infected: removed, zombie kill count goes up. If reserve > 0, a new zombie
 // spawns in the vacated cell. Returns log messages.
