@@ -43,6 +43,7 @@ console.log("zombieMayOccupy (S-1)");
   check("ignoreId=自身则其原格相邻不算", zombieMayOccupy(st, 4, 5, "Z1") === true);
   check("被其他棋子占用 → 禁", zombieMayOccupy(mkState([S("S1", 3, 3)]), 3, 3) === false);
   check("与幸存者正交相邻不影响", zombieMayOccupy(mkState([S("S1", 4, 4)]), 4, 5) === true);
+  check("ignoreId=自身时其本格视为可占(无冲突的 no-op 目标)", zombieMayOccupy(mkState([Z("Z1", 4, 4)]), 4, 4, "Z1") === true);
 }
 
 console.log(failures === 0 ? "\nALL PASS" : `\n${failures} FAILED`);

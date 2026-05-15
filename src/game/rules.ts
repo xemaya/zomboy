@@ -95,6 +95,9 @@ export function zombieMayOccupy(
   if (!inBounds(r, c)) return false;
   if (state.map.terrain[r][c] === "stone") return false;
   const occ = pieceAt(state, r, c);
+  // Occupancy: only the move-mode caller passes ignoreId, and legalMoves only
+  // offers empty destinations — so a cell holding the ignored zombie itself
+  // (its own cell) is treated as occupiable (a harmless no-op target).
   if (occ && occ.id !== ignoreId) return false;
   for (const [dr, dc] of ORTHO) {
     const n = pieceAt(state, r + dr, c + dc);
