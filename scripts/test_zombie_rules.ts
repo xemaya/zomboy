@@ -58,6 +58,10 @@ console.log("legalMoves 僵尸接入 R1");
   const st2 = mkState([S("S1", 4, 4), Z("Z1", 4, 6)]);
   const sm = legalMoves(st2, st2.pieces[0]).map((m) => `${m.r},${m.c}`);
   check("幸存者不受 R1 约束(可走到僵尸旁)", sm.includes("4,5"));
+  // 孤立僵尸:4 格都应合法(legalMoves 必须把 piece.id 当 ignoreId,否则自身原格会误阻塞)
+  const st0 = mkState([Z("Z1", 4, 4)]);
+  const mv0 = legalMoves(st0, st0.pieces[0]).map((m) => `${m.r},${m.c}`);
+  check("孤立僵尸有 4 个合法格(自身不误阻塞)", mv0.length === 4);
 }
 
 console.log(failures === 0 ? "\nALL PASS" : `\n${failures} FAILED`);
