@@ -108,6 +108,19 @@ export function zombieMayOccupy(
   return true;
 }
 
+// R1.4: does the zombie side have ANY legal action this turn? Used to safely
+// skip a (pathologically) stuck zombie turn instead of looping forever.
+export function zombieHasAnyLegalAction(state: State): boolean {
+  if (state.zombieReserve > 0) {
+    for (let r = 0; r < BOARD; r++)
+      for (let c = 0; c < BOARD; c++)
+        if (zombieMayOccupy(state, r, c)) return true;
+  }
+  for (const p of state.pieces)
+    if (p.side === "zombie" && legalMoves(state, p).length > 0) return true;
+  return false;
+}
+
 // End-of-turn infection scan. Any survivor with >=2 orthogonal zombie neighbors
 // is infected: removed, zombie kill count goes up. If reserve > 0, a new zombie
 // spawns in the vacated cell. Returns log messages.

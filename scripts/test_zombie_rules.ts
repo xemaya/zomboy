@@ -1,7 +1,7 @@
 // 僵尸互斥 + 感染生成异地化 规则契约测试
 // Run: npx tsx scripts/test_zombie_rules.ts
 import type { State, Piece } from "../src/game/types";
-import { zombieMayOccupy, legalMoves } from "../src/game/rules";
+import { zombieMayOccupy, legalMoves, zombieHasAnyLegalAction } from "../src/game/rules";
 
 let failures = 0;
 function check(name: string, cond: boolean) {
@@ -62,6 +62,20 @@ console.log("legalMoves 僵尸接入 R1");
   const st0 = mkState([Z("Z1", 4, 4)]);
   const mv0 = legalMoves(st0, st0.pieces[0]).map((m) => `${m.r},${m.c}`);
   check("孤立僵尸有 4 个合法格(自身不误阻塞)", mv0.length === 4);
+}
+
+console.log("zombieHasAnyLegalAction (R1.4 兜底)");
+{
+  // 有库存且存在合法召唤点 → true
+  check("有合法召唤点 → true", zombieHasAnyLegalAction(mkState([Z("Z1", 4, 4)], { reserve: 5 })) === true);
+  // 无库存,但有僵尸能动 → true
+  check("无库存但能移动 → true", zombieHasAnyLegalAction(mkState([Z("Z1", 4, 4)], { reserve: 0 })) === true);
+  // 无库存且唯一僵尸被石头封死 → false
+  const boxed = mkState([Z("Z1", 0, 0)], {
+    reserve: 0,
+    stones: [[0, 1], [1, 0]],
+  });
+  check("无库存且无路可走 → false", zombieHasAnyLegalAction(boxed) === false);
 }
 
 console.log(failures === 0 ? "\nALL PASS" : `\n${failures} FAILED`);
