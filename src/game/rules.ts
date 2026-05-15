@@ -171,10 +171,18 @@ export function runInfection(state: State): string[] {
     state.zombieKills += 1;
     log.push(`${p.id} 在 (${p.r},${p.c}) 被感染！(zombie +1 = ${state.zombieKills})`);
     if (state.zombieReserve > 0) {
-      state.zombieReserve -= 1;
-      const newId = nextZombieId(state);
-      state.pieces.push({ id: newId, side: "zombie", r: p.r, c: p.c });
-      log.push(`新僵尸 ${newId} 在原地生成（库存剩 ${state.zombieReserve}）`);
+      // R2: spawn relocated. pickInfectionSpawn requires this infected
+      // survivor to already be removed from state.pieces (done above) and the
+      // infecting zombies still in place — so call it HERE, post-removal.
+      const spot = pickInfectionSpawn(state);
+      if (spot) {
+        state.zombieReserve -= 1;
+        const newId = nextZombieId(state);
+        state.pieces.push({ id: newId, side: "zombie", r: spot.r, c: spot.c });
+        log.push(`新僵尸 ${newId} 在 (${spot.r},${spot.c}) 生成（库存剩 ${state.zombieReserve}）`);
+      } else {
+        log.push(`无可用点，本次感染未生成新僵尸`);
+      }
     }
   }
   return log;

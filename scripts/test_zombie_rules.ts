@@ -1,7 +1,7 @@
 // 僵尸互斥 + 感染生成异地化 规则契约测试
 // Run: npx tsx scripts/test_zombie_rules.ts
 import type { State, Piece } from "../src/game/types";
-import { zombieMayOccupy, legalMoves, zombieHasAnyLegalAction, pickInfectionSpawn } from "../src/game/rules";
+import { zombieMayOccupy, legalMoves, zombieHasAnyLegalAction, pickInfectionSpawn, runInfection } from "../src/game/rules";
 import { planTurn } from "../src/game/ai";
 
 let failures = 0;
@@ -107,6 +107,28 @@ console.log("pickInfectionSpawn (S-2)");
   check("结果满足 R1", a !== null && zombieMayOccupy(st, a!.r, a!.c) === true);
   check("取离最近幸存者最近 + (r,c) tie-break", a !== null && a!.r === 0 && a!.c === 1);
   check("无存活幸存者 → null", pickInfectionSpawn(mkState([Z("Z1", 4, 3)])) === null);
+}
+
+console.log("runInfection 接入 R2");
+{
+  // S1(4,4) 被 Z1(3,4)+Z2(5,4) 夹击(正交2) → 感染。
+  // 新僵尸不应在 (4,4) 原地;应在离最近存活幸存者最近的合法点。
+  const st = mkState([S("S1", 4, 4), S("S2", 0, 0), Z("Z1", 3, 4), Z("Z2", 5, 4)], { reserve: 9 });
+  const log = runInfection(st);
+  check("感染计分 +1", st.zombieKills === 1);
+  check("被感染者已移除", !st.pieces.some((p) => p.id === "S1"));
+  const spawned = st.pieces.find((p) => p.side === "zombie" && p.id !== "Z1" && p.id !== "Z2");
+  check("生成了新僵尸", !!spawned);
+  check("新僵尸不在原地 (4,4)", !!spawned && !(spawned!.r === 4 && spawned!.c === 4));
+  check("新僵尸满足 R1", !!spawned && zombieMayOccupy({ ...st, pieces: st.pieces.filter((p) => p !== spawned) } as any, spawned!.r, spawned!.c));
+  check("库存 -1", st.zombieReserve === 8);
+  check("日志含生成坐标", log.some((l) => l.includes("生成")));
+  // 无可用点 → 跳过生成、库存不减
+  const st2 = mkState([S("S9", 4, 4), Z("Z1", 3, 4), Z("Z2", 5, 4)], { reserve: 1 });
+  for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) st2.map.terrain[r][c] = "stone";
+  const before = st2.zombieReserve;
+  runInfection(st2);
+  check("无可用点 → 跳过生成、库存不减", st2.zombieReserve === before && st2.zombieKills === 1);
 }
 
 console.log(failures === 0 ? "\nALL PASS" : `\n${failures} FAILED`);
