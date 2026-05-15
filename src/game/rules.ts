@@ -121,6 +121,36 @@ export function zombieHasAnyLegalAction(state: State): boolean {
   return false;
 }
 
+// R2: pick the cell for an infection-spawned zombie. Deterministic: among all
+// R1-legal placeable cells, the one with min Manhattan distance to the nearest
+// surviving survivor; tie-break = lexicographic (r, then c). Returns null when
+// no survivor remains or no legal cell exists (caller then skips the spawn).
+export function pickInfectionSpawn(
+  state: State,
+): { r: number; c: number } | null {
+  const survs = state.pieces.filter((p) => p.side === "survivor");
+  if (survs.length === 0) return null;
+  let best: { r: number; c: number } | null = null;
+  let bestD = Infinity;
+  for (let r = 0; r < BOARD; r++) {
+    for (let c = 0; c < BOARD; c++) {
+      if (!zombieMayOccupy(state, r, c)) continue;
+      let d = Infinity;
+      for (const s of survs) {
+        const md = Math.abs(s.r - r) + Math.abs(s.c - c);
+        if (md < d) d = md;
+      }
+      if (d < bestD) {
+        bestD = d;
+        best = { r, c };
+      }
+      // scan order is r-major then c-major, and we only replace on strictly
+      // smaller distance, so the first (smallest r, then c) wins ties.
+    }
+  }
+  return best;
+}
+
 // End-of-turn infection scan. Any survivor with >=2 orthogonal zombie neighbors
 // is infected: removed, zombie kill count goes up. If reserve > 0, a new zombie
 // spawns in the vacated cell. Returns log messages.

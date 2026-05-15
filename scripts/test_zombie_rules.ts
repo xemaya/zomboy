@@ -1,7 +1,7 @@
 // 僵尸互斥 + 感染生成异地化 规则契约测试
 // Run: npx tsx scripts/test_zombie_rules.ts
 import type { State, Piece } from "../src/game/types";
-import { zombieMayOccupy, legalMoves, zombieHasAnyLegalAction } from "../src/game/rules";
+import { zombieMayOccupy, legalMoves, zombieHasAnyLegalAction, pickInfectionSpawn } from "../src/game/rules";
 import { planTurn } from "../src/game/ai";
 
 let failures = 0;
@@ -96,6 +96,17 @@ console.log("召唤接入 R1 (AI enumerate)");
   }
   check("AI 召唤落点恒满足 R1", ok);
   check("60 轮内至少触发一次召唤(覆盖性,非空测)", sawSummon);
+}
+
+console.log("pickInfectionSpawn (S-2)");
+{
+  const st = mkState([Z("Z1", 4, 3), Z("Z2", 4, 5), S("S1", 0, 0)]);
+  const a = pickInfectionSpawn(st);
+  const b = pickInfectionSpawn(mkState([Z("Z1", 4, 3), Z("Z2", 4, 5), S("S1", 0, 0)]));
+  check("确定性:同输入同输出", a !== null && b !== null && a!.r === b!.r && a!.c === b!.c);
+  check("结果满足 R1", a !== null && zombieMayOccupy(st, a!.r, a!.c) === true);
+  check("取离最近幸存者最近 + (r,c) tie-break", a !== null && a!.r === 0 && a!.c === 1);
+  check("无存活幸存者 → null", pickInfectionSpawn(mkState([Z("Z1", 4, 3)])) === null);
 }
 
 console.log(failures === 0 ? "\nALL PASS" : `\n${failures} FAILED`);
