@@ -56,6 +56,28 @@ const manhattan = (a: { r: number; c: number }, b: { r: number; c: number }) =>
 
 // ---------- evaluation (zombie-positive zero-sum) ----------
 
+// Killable zombies, and the subset of them that are "useful" (a killable
+// zombie that is itself orthogonally pincering a survivor — losing it is a
+// fair trade to set up an infection). Returned as DISTINCT id sets so a zombie
+// adjacent to two survivors is never double-counted (that double-count once
+// flipped the penalty positive, rewarding exposure).
+export function killableExposure(s: State): { killable: Set<string>; useful: Set<string> } {
+  const ss = survivors(s);
+  const killable = new Set<string>();
+  for (const sv of ss)
+    for (const j of legalJumps(s, sv)) {
+      const z = pieceAt(s, j.killR, j.killC);
+      if (z && z.side === "zombie") killable.add(z.id);
+    }
+  const useful = new Set<string>();
+  for (const sv of ss)
+    for (const [dr, dc] of ORTHO) {
+      const p = pieceAt(s, sv.r + dr, sv.c + dc);
+      if (p && p.side === "zombie" && killable.has(p.id)) useful.add(p.id);
+    }
+  return { killable, useful };
+}
+
 export function zombieScore(s: State): number {
   let v = s.zombieKills * 100000;
   const zs = zombies(s);
@@ -78,24 +100,8 @@ export function zombieScore(s: State): number {
     for (const z of zs) minD = Math.min(minD, manhattan(z, sv));
     if (minD < 99) v += -minD * 3;
   }
-  const killable = new Set<string>();
-  for (const sv of ss) for (const j of legalJumps(s, sv)) {
-    const z = pieceAt(s, j.killR, j.killC);
-    if (z && z.side === "zombie") killable.add(z.id);
-  }
-  // a killable zombie that is itself pincering a survivor is a fair trade
-  // (lose 1 to set up an infection); only "useless" exposure stays harsh.
-  // Count DISTINCT killable zombies adjacent to any survivor (a zombie next to
-  // two survivors must not be double-counted, else the penalty flips positive).
-  const usefulKillableIds = new Set<string>();
-  for (const sv of ss) {
-    for (const [dr, dc] of ORTHO) {
-      const p = pieceAt(s, sv.r + dr, sv.c + dc);
-      if (p && p.side === "zombie" && killable.has(p.id)) usefulKillableIds.add(p.id);
-    }
-  }
-  const usefulKillable = usefulKillableIds.size;
-  v += -(killable.size - usefulKillable) * 160 - usefulKillable * 60;
+  const { killable, useful } = killableExposure(s);
+  v += -(killable.size - useful.size) * 160 - useful.size * 60;
   v += zs.length * 5 + s.zombieReserve * 3;
   return v;
 }
