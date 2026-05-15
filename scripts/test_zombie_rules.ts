@@ -180,15 +180,23 @@ console.log("S-3 R1 不阻挡任何合法感染阵型");
 
 console.log("S-4 贴边墙不再免疫(G-A 守卫)");
 {
-  // R1 下贴边列只能成棋盘格:Z 在 (0,0)(2,0)(4,0),奇数行空。
-  // 幸存者站墙列空格 (1,0),向南可跳杀 (2,0) 落 (3,0)。
+  // 真正的回归守卫:R1 必须禁止"密集贴边"——(0,0)、(2,0) 有僵尸时,
+  // (1,0) 不可再放僵尸,故连续实心贴边列无法形成。若 R1 被移除,
+  // zombieMayOccupy 会返回 true,此断言失败 → 守住核心目标。
+  const contiguous = mkState([Z("Z1", 0, 0), Z("Z2", 2, 0)]);
+  check("R1 禁止密集贴边(移除 R1 则此断言失败)", zombieMayOccupy(contiguous, 1, 0) === false);
+
+  // 在 R1 允许的"棋盘格"贴边布局下,幸存者能真的跳杀掉边列僵尸:
+  // S1(1,0) 向南跨过 Z2(2,0) 落 (3,0)。精确钉死跳杀目标与落点。
   const st = mkState([
     Z("Z1", 0, 0), Z("Z2", 2, 0), Z("Z3", 4, 0),
     S("S1", 1, 0),
   ]);
   const jumps = legalJumps(st, st.pieces.find((p) => p.id === "S1")!);
-  const killsCol0 = jumps.some((j) => j.killC === 0);
-  check("间隔贴边墙可被跳杀", killsCol0);
+  const exact = jumps.some(
+    (j) => j.killR === 2 && j.killC === 0 && j.destR === 3 && j.destC === 0,
+  );
+  check("间隔贴边墙可被精确跳杀(杀(2,0)落(3,0))", exact);
 }
 
 console.log("zombieHasAnyLegalAction 补充分支(reserve>0 但无合法召唤、僵尸仍可动 → true)");
