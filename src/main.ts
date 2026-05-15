@@ -1,9 +1,9 @@
 import { generateMap } from "./game/mapgen";
-import { clickCell, newState } from "./game/state";
+import { clickCell, newState, endZombieTurnNow } from "./game/state";
 import { planTurn, planCardResolution, type Level } from "./game/ai";
 import { aiCardDecision } from "./game/aiCardFlow";
 import { segCurrent, groupNeedsExtraRebuild } from "./ui/startMenu";
-import { emptyCells, legalMoves } from "./game/rules";
+import { emptyCells, legalMoves, zombieMayOccupy, zombieHasAnyLegalAction } from "./game/rules";
 import type { Side, State } from "./game/types";
 import { renderBoard } from "./ui/board";
 import { renderCardModal } from "./ui/cardModal";
@@ -192,8 +192,12 @@ function runClicks(clicks: Array<{ r: number; c: number }>, side: Side, stepMs?:
 }
 
 function aiFallbackEndZombie() {
-  const empties = emptyCells(state);
-  if (state.zombieReserve > 0 && empties.length) { clickCell(state, empties[0].r, empties[0].c); return; }
+  if (!zombieHasAnyLegalAction(state)) { endZombieTurnNow(state); return; }
+  const empties = emptyCells(state).filter((e) => zombieMayOccupy(state, e.r, e.c));
+  if (state.zombieReserve > 0 && empties.length) {
+    clickCell(state, empties[0].r, empties[0].c);
+    return;
+  }
   const zs = state.pieces.filter((p) => p.side === "zombie");
   for (const z of zs) {
     const m = legalMoves(state, z);
@@ -206,6 +210,8 @@ function aiFallbackEndZombie() {
       if (state.turnSide !== "zombie") return;
     }
   }
+  // 仍未结束(理论上 zombieHasAnyLegalAction 已保证有手;防御性收尾)
+  if (state.turnSide === "zombie") endZombieTurnNow(state);
 }
 
 function render() {

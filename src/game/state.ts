@@ -463,6 +463,12 @@ function endZombieTurn(state: State) {
   runEndOfTurn(state);
 }
 
+// Exposed so the AI driver can safely end a (pathologically) stuck zombie
+// turn instead of looping. Mirrors endZombieTurn.
+export function endZombieTurnNow(state: State): void {
+  endZombieTurn(state);
+}
+
 function runEndOfTurn(state: State) {
   const infLog = runInfection(state);
   if (infLog.length) {
