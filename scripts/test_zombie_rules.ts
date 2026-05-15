@@ -129,17 +129,32 @@ console.log("runInfection 接入 R2");
   const before = st2.zombieReserve;
   runInfection(st2);
   check("无可用点 → 跳过生成、库存不减", st2.zombieReserve === before && st2.zombieKills === 1);
-  // R2.3 多感染:同回合两个幸存者被夹击,两次 pickInfectionSpawn 落点必须不同
+  // R2.3 多感染(spec 正确版):S1、S2 同回合被夹感染,S3 始终存活未被感染。
+  // 两次感染都有存活幸存者 → 都应生成;且后一次 pickInfectionSpawn 看到前一次
+  // 已生成的僵尸,故两只新僵尸不同格、彼此不正交相邻(确定性,R2.3)。
   const st3 = mkState([
-    S("S1", 0, 1), S("S2", 7, 6),
+    S("S1", 0, 1), S("S2", 7, 1), S("S3", 4, 4),
     Z("Z1", 0, 0), Z("Z2", 0, 2),   // 夹 S1
-    Z("Z3", 7, 5), Z("Z4", 7, 7),   // 夹 S2
+    Z("Z3", 7, 0), Z("Z4", 7, 2),   // 夹 S2
   ], { reserve: 9 });
   runInfection(st3);
-  const newZombies = st3.pieces.filter(
+  const newZs = st3.pieces.filter(
     (p) => p.side === "zombie" && !["Z1", "Z2", "Z3", "Z4"].includes(p.id));
-  check("双感染生成两只新僵尸", newZombies.length === 2);
-  check("两只新僵尸落点不同", !(newZombies[0].r === newZombies[1].r && newZombies[0].c === newZombies[1].c));
+  check("R2.3 双感染各生成一只(S3 始终存活)", newZs.length === 2);
+  check("R2.3 两只新僵尸不同格", !(newZs[0].r === newZs[1].r && newZs[0].c === newZs[1].c));
+  const adj = Math.abs(newZs[0].r - newZs[1].r) + Math.abs(newZs[0].c - newZs[1].c) === 1;
+  check("R2.3 两只新僵尸不正交相邻(R1 跨次保持)", newZs.length === 2 && !adj);
+  check("R2.3 两次感染均计分", st3.zombieKills === 2);
+  // 确定性:同输入重跑结果一致
+  const st3b = mkState([
+    S("S1", 0, 1), S("S2", 7, 1), S("S3", 4, 4),
+    Z("Z1", 0, 0), Z("Z2", 0, 2), Z("Z3", 7, 0), Z("Z4", 7, 2),
+  ], { reserve: 9 });
+  runInfection(st3b);
+  const newZsB = st3b.pieces.filter((p) => p.side === "zombie" && !["Z1","Z2","Z3","Z4"].includes(p.id));
+  check("R2.3 确定性:多感染同输入同输出",
+    newZs.length === newZsB.length &&
+    newZs.every((z, i) => z.r === newZsB[i].r && z.c === newZsB[i].c));
 }
 
 console.log(failures === 0 ? "\nALL PASS" : `\n${failures} FAILED`);
