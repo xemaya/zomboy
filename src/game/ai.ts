@@ -88,20 +88,21 @@ export function zombieScore(s: State): number {
       const p = pieceAt(s, sv.r + dr, sv.c + dc);
       if (p && p.side === "zombie") n++;
     }
-    if (n === 1) v += 70;
+    if (n === 1) v += 140;
+    if (n >= 2) v += 360; // both adjacent → infection fires end of turn (win cond)
     if (n >= 1) {
       for (const [dr, dc] of ORTHO) {
         const er = sv.r + dr, ec = sv.c + dc;
         if (!inB(er, ec) || s.map.terrain[er][ec] === "stone" || pieceAt(s, er, ec)) continue;
-        if (zs.some((z) => manhattan(z, { r: er, c: ec }) <= 2)) v += 12;
+        if (zs.some((z) => manhattan(z, { r: er, c: ec }) <= 2)) v += 30;
       }
     }
     let minD = 99;
     for (const z of zs) minD = Math.min(minD, manhattan(z, sv));
-    if (minD < 99) v += -minD * 3;
+    if (minD < 99) v += -minD * 5;
   }
   const { killable, useful } = killableExposure(s);
-  v += -(killable.size - useful.size) * 160 - useful.size * 60;
+  v += -(killable.size - useful.size) * 160 - useful.size * 150;
   v += zs.length * 5 + s.zombieReserve * 3;
   return v;
 }
@@ -258,18 +259,18 @@ export function zombieOffense(s: State): number {
       const p = pieceAt(s, sv.r + dr, sv.c + dc);
       if (p && p.side === "zombie") ortho++;
     }
-    if (ortho === 1) b += 80;   // one ortho zombie = one step from infection
-    if (ortho >= 2) b += 140;   // about to infect
+    if (ortho === 1) b += 160;  // one ortho zombie = one step from infection
+    if (ortho >= 2) b += 340;   // about to infect — commit despite worst-case
     // suffocation: fewer escape squares for the survivor is good
-    b += (8 - legalMoves(s, sv).length) * 6;
+    b += (8 - legalMoves(s, sv).length) * 12;
     // commit: zombies near the survivor (engage, don't hover)
     let near = 0;
     for (const z of zs) if (manhattan(z, sv) <= 2) near++;
-    b += near * 14;
+    b += near * 26;
     // herd to wall/corner
     const edge = sv.r === 0 || sv.r === 7 || sv.c === 0 || sv.c === 7;
     const corner = (sv.r === 0 || sv.r === 7) && (sv.c === 0 || sv.c === 7);
-    b += corner ? 36 : edge ? 16 : 0;
+    b += corner ? 70 : edge ? 34 : 0;
   }
   return b;
 }
